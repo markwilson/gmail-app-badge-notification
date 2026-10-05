@@ -14,7 +14,7 @@ function getUnreadCount(xmlText) {
 async function getAtomFeed(label) {
     const url = `https://mail.google.com/mail/feed/atom${label ? `/${label}` : ''}?_=${new Date().getTime()}`;
     try {
-        const response = await fetch(url, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+        const response = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Cache-Control': 'no-cache' } });
         return await response.text();
     } catch (err) {
         console.error('Error fetching Atom feed:', err);

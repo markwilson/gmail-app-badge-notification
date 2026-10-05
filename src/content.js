@@ -1,43 +1,13 @@
 (() => {
+    // The unread count is fetched by the background service worker (not
+    // subject to Gmail's page CSP) and pushed here, since navigator.setAppBadge
+    // must be called from the app window's own context.
     let unreadCount;
 
-    function getUnreadCount(doc) {
-        if (!doc) return -1;
-        const fullcountElement = doc.querySelector('fullcount');
-        if (!fullcountElement) return -1;
-        const count = parseInt(fullcountElement.textContent);
-        return isNaN(count) ? -1 : count;
-    }
-
-    // Fetch Gmail feed and parse unread count
-    async function getAtomFeed(label) {
-        const url = `https://mail.google.com/mail/feed/atom${label ? `/${label}` : ''}?_=${new Date().getTime()}`;
-        return fetch(url, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } })
-            .then(response => response.text())
-            .then(text => {
-                const parser = new DOMParser();
-                return parser.parseFromString(text, 'application/xml');
-            })
-            .catch(err => {
-                console.error('Error fetching Atom feed:', err);
-                return null;
-            });
-    }
-
-    async function updateBadgeIcon() {
-        chrome.storage.sync.get({ label: '' }, async ({ label }) => {
-            const feed = await getAtomFeed(label);
-            const newUnreadCount = getUnreadCount(feed);
-            if (newUnreadCount < 0) return;
-
-            if (newUnreadCount !== unreadCount) {
-                unreadCount = newUnreadCount;
-                navigator.setAppBadge(unreadCount); 
-            }
-        });
-    }
-
-    setInterval(updateBadgeIcon, 1000);
-
-    updateBadgeIcon();
+    chrome.runtime.onMessage.addListener((message) => {
+        if (message.type !== 'setBadge') return;
+        if (message.count === unreadCount) return;
+        unreadCount = message.count;
+        navigator.setAppBadge(unreadCount);
+    });
 })();

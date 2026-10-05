@@ -1,11 +1,51 @@
 
+// Fetching the Atom feed from a content script running on mail.google.com
+// gets blocked by Gmail's own CSP (the feed redirects through
+// accounts.google.com for a re-auth check). Service worker fetches aren't
+// subject to the page's CSP, so the feed is fetched here and the resulting
+// count is pushed to the Gmail tab via messaging instead.
+function getUnreadCount(xmlText) {
+    const match = xmlText.match(/<fullcount>(\d+)<\/fullcount>/);
+    if (!match) return -1;
+    const count = parseInt(match[1], 10);
+    return isNaN(count) ? -1 : count;
+}
+
+async function getAtomFeed(label) {
+    const url = `https://mail.google.com/mail/feed/atom${label ? `/${label}` : ''}?_=${new Date().getTime()}`;
+    try {
+        const response = await fetch(url, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+        return await response.text();
+    } catch (err) {
+        console.error('Error fetching Atom feed:', err);
+        return null;
+    }
+}
+
+async function updateBadge() {
+    const { label } = await chrome.storage.sync.get({ label: '' });
+    const feedText = await getAtomFeed(label);
+    const count = feedText ? getUnreadCount(feedText) : -1;
+    if (count < 0) return;
+
+    const tabs = await chrome.tabs.query({ url: '*://*.mail.google.com/mail/*' });
+    for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, { type: 'setBadge', count }).catch(() => {});
+    }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.alarms.create('keepAlive', { periodInMinutes: 1 });
+    chrome.alarms.create('updateBadge', { periodInMinutes: 1 });
+    updateBadge();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    updateBadge();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'keepAlive') {
-        console.log('Service worker ping');
+    if (alarm.name === 'updateBadge') {
+        updateBadge();
     }
 });
 

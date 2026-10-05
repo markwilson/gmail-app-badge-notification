@@ -19,6 +19,7 @@
     "service_worker": "background.js"
   },
   "permissions": ["storage", "contextMenus", "alarms"],
+  "host_permissions": ["https://mail.google.com/*"],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
